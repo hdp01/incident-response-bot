@@ -1,14 +1,12 @@
-import boto3, json
+import boto3
+import json
 from datetime import datetime, timedelta
 from config import Config
 
 class IncidentAnalyzer:
     def __init__(self):
-        self.session = boto3.Session(
-            aws_access_key_id=Config.AWS_ACCESS_KEY,
-            aws_secret_access_key=Config.AWS_SECRET_KEY,
-            region_name=Config.REGION
-        )
+        self.session = boto3.Session(region_name=Config.REGION)
+        
         self.logs = self.session.client('logs')
         self.bedrock = self.session.client('bedrock-runtime')
 
@@ -22,13 +20,18 @@ class IncidentAnalyzer:
             )
             return [e['message'] for e in response.get('events', [])]
         except Exception as e:
-            print(f"Fetch Error: {e}")
+            print(f"❌ CloudWatch Fetch Error: {e}")
             return []
 
-    def get_ai_fix(self, logs):
+    def get_ai_fix(self, clean_logs):
         body = json.dumps({
             "inferenceConfig": {"max_new_tokens": 500, "temperature": 0.2},
-            "messages": [{"role": "user", "content": [{"text": f"Explain this error and provide a fix:\n{logs}"}]}]
+            "messages": [{"role": "user", "content": [{"text": f"Explain this error and provide a fix:\n{clean_logs}"}]}]
         })
-        response = self.bedrock.invoke_model(modelId=Config.MODEL_ID, body=body)
-        return json.loads(response.get("body").read())['output']['message']['content'][0]['text']
+        
+        try:
+            response = self.bedrock.invoke_model(modelId=Config.MODEL_ID, body=body)
+            result = json.loads(response.get("body").read())
+            return result['output']['message']['content'][0]['text']
+        except Exception as e:
+            return f"AI Analysis failed: {str(e)}"
