@@ -6,7 +6,6 @@ from config import Config
 class IncidentAnalyzer:
     def __init__(self):
         self.session = boto3.Session(region_name=Config.REGION)
-        
         self.logs = self.session.client('logs')
         self.bedrock = self.session.client('bedrock-runtime')
 
@@ -24,14 +23,38 @@ class IncidentAnalyzer:
             return []
 
     def get_ai_fix(self, clean_logs):
+        if not clean_logs.strip():
+            return "No readable logs found after scrubbing."
+
         body = json.dumps({
-            "inferenceConfig": {"max_new_tokens": 500, "temperature": 0.2},
-            "messages": [{"role": "user", "content": [{"text": f"Explain this error and provide a fix:\n{clean_logs}"}]}]
+            "messages": [
+                {
+                    "role": "user",
+                    "content": [
+                        {
+                            "text": f"You are an expert SRE. Analyze these logs, explain the root cause, and provide a 3-step fix:\n\n{clean_logs}"
+                        }
+                    ]
+                }
+            ],
+            "inferenceConfig": {
+                "max_new_tokens": 500,
+                "temperature": 0.2,
+                "topP": 0.9
+            }
         })
         
         try:
-            response = self.bedrock.invoke_model(modelId=Config.MODEL_ID, body=body)
-            result = json.loads(response.get("body").read())
-            return result['output']['message']['content'][0]['text']
+            response = self.bedrock.invoke_model(
+                modelId=Config.MODEL_ID, 
+                body=body,
+                contentType="application/json",
+                accept="application/json"
+            )
+            
+            response_body = json.loads(response.get("body").read())
+            return response_body['output']['message']['content'][0]['text']
+            
         except Exception as e:
+            print(f"❌ Bedrock Analysis Error: {str(e)}")
             return f"AI Analysis failed: {str(e)}"
