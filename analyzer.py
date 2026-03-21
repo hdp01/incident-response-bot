@@ -37,7 +37,7 @@ class IncidentAnalyzer:
                 }
             ],
             "inferenceConfig": {
-                "max_new_tokens": 500,
+                "max_new_tokens": 1000,
                 "temperature": 0.2
             }
         })
